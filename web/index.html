@@ -136,21 +136,39 @@
     border-radius: 16px;
   }
   @media (max-width: 640px) {
-    :root { --hud: 118px; }
-    #hud { grid-template-columns: 72px 1fr; }
-    #hint { grid-column: 1 / -1; text-align: left; }
     #cover h1 { font-size: 18px; }
   }
-  @media (max-height: 520px) {
-    #dpad { width: 132px; height: 132px; }
-    #dpad .up, #dpad .down { left: 34px; }
-    #dpad .left, #dpad .right { top: 34px; }
-    #lookstick { width: 116px; height: 116px; }
-    #lookstick .nub { width: 56px; height: 56px; }
-    #useBtn { bottom: 140px; min-width: 68px; min-height: 56px; }
+  /* Phone: a short label, with the controls in the bottom corners of the view. */
+  body.touch { --hud: calc(40px + env(safe-area-inset-bottom)); }
+  body.touch #hud {
+    grid-template-columns: 40px 1fr;
+    padding: 0 12px 0 8px;
+    gap: 8px;
   }
-  @media (orientation: portrait) {
-    #useBtn { bottom: 176px; }
+  body.touch #hint { display: none; }
+  body.touch #face { width: 32px; height: 32px; }
+  body.touch #titles b { font-size: 11px; letter-spacing: 0.08em; }
+  body.touch #titles span { font-size: 10px; letter-spacing: 0.06em; }
+  body.touch #touch { height: 156px; }
+  body.touch #dpad {
+    width: 108px; height: 108px;
+    border-radius: 18px;
+    bottom: 6px;
+  }
+  body.touch #dpad .dir { width: 42px; height: 42px; font-size: 14px; }
+  body.touch #dpad .up { left: 33px; top: 2px; }
+  body.touch #dpad .down { left: 33px; bottom: 2px; }
+  body.touch #dpad .left { left: 2px; top: 33px; }
+  body.touch #dpad .right { right: 2px; top: 33px; }
+  body.touch #lookstick { width: 96px; height: 96px; bottom: 6px; }
+  body.touch #lookstick .nub { width: 40px; height: 40px; }
+  body.touch #useBtn {
+    right: max(22px, calc(env(safe-area-inset-right) + 14px));
+    bottom: 108px;
+    min-width: 58px; min-height: 40px;
+    padding: 0 10px;
+    font-size: 11px;
+    border-radius: 12px;
   }
 </style>
 </head>
