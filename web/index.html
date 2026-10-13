@@ -49,7 +49,23 @@
   #titles { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
   #titles b { font-size: 15px; letter-spacing: 0.14em; font-weight: 700; }
   #titles span { color: var(--dim); font-size: 12px; letter-spacing: 0.08em; }
-  #hint { color: var(--dim); font-size: 12px; letter-spacing: 0.12em; text-align: right; }
+  #hint {
+    display: flex; align-items: center; justify-content: flex-end; gap: 14px;
+    color: var(--dim); font-size: 11px; letter-spacing: 0.1em;
+  }
+  .wasd { display: grid; grid-template-columns: repeat(3, 18px); grid-template-rows: 18px 18px; gap: 3px; }
+  .wasd kbd:nth-child(1) { grid-column: 2; grid-row: 1; }
+  .wasd kbd:nth-child(2) { grid-column: 1; grid-row: 2; }
+  .wasd kbd:nth-child(3) { grid-column: 2; grid-row: 2; }
+  .wasd kbd:nth-child(4) { grid-column: 3; grid-row: 2; }
+  .hintbit { flex: 0 0 auto; }
+  kbd {
+    display: grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px;
+    border: 1px solid rgba(240, 221, 184, 0.45); border-bottom-width: 2px; border-radius: 4px;
+    color: var(--ink); font: inherit; font-size: 10px; letter-spacing: 0;
+    background: rgba(255, 255, 255, 0.05);
+  }
+  .hintbit { white-space: nowrap; }
   #cover {
     position: fixed; inset: 0; background: rgba(5, 3, 2, 0.78);
     display: flex; align-items: center; justify-content: center; text-align: center;
@@ -204,7 +220,16 @@
     <b>URBAN FOX RENTALS</b>
     <span>3RD FLOOR &nbsp;·&nbsp; EXPLORE THE SPACE</span>
   </div>
-  <div id="hint">MOVE · LOOK · USE · HOLD SHIFT TO RUN</div>
+  <div id="hint">
+    <div class="wasd" aria-label="W A S D to move">
+      <kbd>W</kbd>
+      <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>
+    </div>
+    <span class="hintbit">MOVE</span>
+    <span class="hintbit">MOUSE LOOK</span>
+    <span class="hintbit"><kbd>E</kbd> USE</span>
+    <span class="hintbit">HOLD <kbd>SHIFT</kbd> RUN</span>
+  </div>
 </footer>
 <div id="cover">
   <div>
@@ -244,12 +269,12 @@ const state = {
 };
 const touchMove = { x: 0, y: 0 };
 const touchLook = { x: 0, y: 0 };
-const touchPreferred = window.matchMedia("(pointer: coarse)").matches || "ontouchstart" in window;
+const finePointer = window.matchMedia("(pointer: fine)").matches;
+const touchPreferred = window.matchMedia("(pointer: coarse)").matches && !finePointer;
 if (touchPreferred) {
   document.body.classList.add("touch");
   $("startHint").textContent = "TAP TO EXPLORE";
   $("startKeys").innerHTML = "<li>MOVE &nbsp;·&nbsp; LOOK &nbsp;·&nbsp; USE</li>";
-  $("hint").textContent = "MOVE · LOOK · USE";
 }
 
 let level, blocked, inside, doorOwner;
@@ -290,6 +315,33 @@ function blockedAt(x, z) {
     return !door || door.amount < 0.72;
   }
   return true;
+}
+
+function releaseDoor(ownerId, fill) {
+  const W = level.gridW;
+  for (let i = 0; i < doorOwner.length; i++) {
+    if (doorOwner[i] !== ownerId) continue;
+    const z = level.origin[1] + (Math.floor(i / W) + 0.5) * level.cell;
+    doorOwner[i] = 0;
+    if (blocked[i] === 3) blocked[i] = fill(z);
+  }
+}
+
+function stampDoor(ownerId, x0, z0, x1, z1) {
+  const cell = level.cell;
+  const c0 = Math.floor((Math.min(x0, x1) - level.origin[0]) / cell);
+  const c1 = Math.floor((Math.max(x0, x1) - level.origin[0]) / cell);
+  const r0 = Math.floor((Math.min(z0, z1) - level.origin[1]) / cell);
+  const r1 = Math.floor((Math.max(z0, z1) - level.origin[1]) / cell);
+  for (let r = r0; r <= r1; r++) {
+    for (let c = c0; c <= c1; c++) {
+      if (c < 0 || r < 0 || c >= level.gridW || r >= level.gridH) continue;
+      const i = r * level.gridW + c;
+      if (!inside[i] || blocked[i] === 1) continue;
+      blocked[i] = 3;
+      doorOwner[i] = ownerId;
+    }
+  }
 }
 
 function widenWalk() {
@@ -525,16 +577,14 @@ function doorLeaf(door) {
   const hx = door.meta.hinge[0];
   const hz = door.meta.hinge[1];
   const alongX = Math.abs(x1 - x0) >= Math.abs(z1 - z0);
-  const name = door.meta.name || "";
   const slide = door.meta.motion === "slide";
-  const widen = slide ? 1 : name.indexOf("c9643aaf") !== -1 ? 1.02 : name.indexOf("05f0d57c") !== -1 ? 1.12 : 1;
   if (slide) {
     const ox = door.meta.slide[0] * door.amount;
     const oz = door.meta.slide[1] * door.amount;
     if (alongX) return { xA: x0 + ox, zA: (z0 + z1) / 2 + oz, xB: x1 + ox, zB: (z0 + z1) / 2 + oz };
     return { xA: (x0 + x1) / 2 + ox, zA: z0 + oz, xB: (x0 + x1) / 2 + ox, zB: z1 + oz };
   }
-  const span = alongX ? ((x0 + x1) / 2 - hx) * 2 * widen : ((z0 + z1) / 2 - hz) * 2 * widen;
+  const span = alongX ? ((x0 + x1) / 2 - hx) * 2 : ((z0 + z1) / 2 - hz) * 2;
   const lx = alongX ? span : 0;
   const lz = alongX ? 0 : span;
   const ang = door.amount * door.sign * Math.PI * 0.5;
@@ -718,7 +768,7 @@ function frame(now) {
     for (const cab of cabinets) {
       const goal = cab.open ? 1 : 0;
       cab.amount += (goal - cab.amount) * Math.min(1, dt * 4);
-      cab.group.rotation.y = cab.amount * cab.sign * Math.PI * 0.55;
+      cab.group.rotation.y = cab.amount * cab.sign * Math.PI * 0.5;
     }
     for (const stream of waterStreams) {
       stream.mesh.visible = stream.on;
@@ -1151,13 +1201,14 @@ function dressApartment() {
   ];
   [-4.7, -4.25, -3.75, -3.3].forEach((z, i) => {
     const width = 0.4;
-    const hingeZ = z + (i % 2 === 0 ? width / 2 : -width / 2);
+    const outerSouth = i % 2 === 0;
+    const hingeZ = z + (outerSouth ? -width / 2 : width / 2);
     const group = new THREE.Group();
     group.position.set(-2.5, 1.9, hingeZ);
     const leaf = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.7, width), white);
-    leaf.position.z = i % 2 === 0 ? -width / 2 : width / 2;
+    leaf.position.z = outerSouth ? width / 2 : -width / 2;
     const pull = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.12, 0.035), black);
-    pull.position.set(0.02, -0.18, leaf.position.z + (i % 2 === 0 ? 0.12 : -0.12));
+    pull.position.set(0.02, -0.18, leaf.position.z + (outerSouth ? 0.12 : -0.12));
     group.add(leaf, pull);
     scene.add(group);
     addBox(-2.9, 1.9, z, 0.04, 0.78, 0.42, white);
@@ -1166,7 +1217,7 @@ function dressApartment() {
       addBox(shelfX, y, z, 0.28, 0.02, 0.32, white);
       shelfSets[i][shelf](shelfX, y + 0.012, z);
     });
-    cabinets.push({ group, open: false, amount: 0, sign: i % 2 === 0 ? -1 : 1, x: -2.5, z });
+    cabinets.push({ group, open: false, amount: 0, sign: outerSouth ? 1 : -1, x: -2.5, z });
   });
   const frost = dressMat(0xf7f4ee, { transparent: true, opacity: 0.55 });
   addBox(-2.54, 1.88, -3.55, 0.03, 0.62, 0.42, frost);
@@ -1252,15 +1303,29 @@ function dressApartment() {
 
   for (const door of doors) {
     const name = door.meta.name;
+    const bathDoor = name.indexOf("c9643aaf") !== -1;
+    const bedDoor = name.indexOf("05f0d57c") !== -1;
+    const ownerId = doors.indexOf(door) + 1;
+    if (bathDoor) {
+      door.mesh.visible = false;
+      door.meta.hinge = [-1.15, 0.82];
+      door.meta.aabb = [-1.19, 0.08, -1.11, 0.82];
+      releaseDoor(ownerId, () => 1);
+      stampDoor(ownerId, -1.28, 0.08, -1.02, 0.82);
+    } else if (bedDoor) {
+      door.mesh.visible = false;
+      door.meta.hinge = [-1.18, 1.26];
+      door.meta.aabb = [-1.9, 1.22, -1.18, 1.3];
+      releaseDoor(ownerId, (z) => (z > 0.84 ? 1 : 0));
+      stampDoor(ownerId, -1.9, 1.18, -1.2, 1.34);
+    }
     const [x0, z0, x1, z1] = door.meta.aabb;
     const hx = door.meta.hinge[0];
     const hz = door.meta.hinge[1];
     const dx = Math.abs(x1 - x0);
     const dz = Math.abs(z1 - z0);
     const alongX = dx >= dz;
-    const bathDoor = name.indexOf("c9643aaf") !== -1;
-    const bedDoor = name.indexOf("05f0d57c") !== -1;
-    const widen = door.meta.motion === "slide" ? 1.16 : bathDoor ? 1.02 : bedDoor ? 1.12 : 1.48;
+    const widen = door.meta.motion === "slide" ? 1.16 : bathDoor || bedDoor ? 1 : 1.48;
     if (alongX) door.mesh.scale.x = widen;
     else door.mesh.scale.z = widen;
     const cx = hx + ((x0 + x1) / 2 - hx) * (alongX ? widen : 1);
