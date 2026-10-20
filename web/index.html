@@ -117,12 +117,6 @@
     border-radius: 14px;
     touch-action: none;
   }
-  #tvwrap {
-    position: fixed; left: 0; top: 0; width: 480px; height: 270px;
-    display: none; z-index: 3; pointer-events: none; overflow: hidden;
-    background: #000; transform-origin: 0 0;
-  }
-  #tvwrap iframe { width: 100%; height: 100%; border: 0; pointer-events: none; }
   @media (max-width: 640px) {
     #cover h1 { font-size: 18px; }
   }
@@ -193,7 +187,6 @@
     </ul>
   </div>
 </div>
-<div id="tvwrap"><iframe id="tvframe" title="Living room stream" allow="autoplay; encrypted-media; picture-in-picture"></iframe></div>
 <div id="touch">
   <div id="stickMove" class="floatstick" aria-hidden="true"><div class="nub"></div></div>
   <div id="stickLook" class="floatstick" aria-hidden="true"><div class="nub"></div></div>
@@ -234,7 +227,10 @@ let nearestUse = null;
 const fixtures = [];
 let tvMat = null;
 let bedMat = null;
-let tvCorners = null;
+let tvChannels = [];
+let tvChannel = 0;
+let bedView = null;
+const tvNames = ["SOCCER", "BASKETBALL", "BASEBALL", "NEWS"];
 let curtainRig = null;
 let cabinets = [];
 let drawers = [];
@@ -535,14 +531,8 @@ function applyLook() {
     if (mat.userData.sticky) continue;
     mat.emissive.copy(mat.userData.emissive);
   }
-  if (tvMat) {
-    tvMat.color.set(state.tv ? 0x10141a : 0x14171c);
-    tvMat.emissive.set(state.tv ? 0x1a2834 : 0x000000);
-  }
-  if (bedMat) {
-    bedMat.color.set(state.bedTv ? 0xf4f7fb : 0x14171c);
-    bedMat.emissive.set(state.bedTv ? 0x8eb4d4 : 0x000000);
-  }
+  showScreen(tvMat, state.tv, state.tv ? tvChannels[tvChannel] : null);
+  showScreen(bedMat, state.bedTv, bedView);
   resize();
 }
 
@@ -697,79 +687,19 @@ function updatePrompt() {
   } else el.style.display = "none";
 }
 
-function solve8(A, b) {
-  const n = 8;
-  const M = A.map((row, i) => row.concat([b[i]]));
-  for (let c = 0; c < n; c++) {
-    let piv = c;
-    for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[piv][c])) piv = r;
-    if (Math.abs(M[piv][c]) < 1e-8) return null;
-    const swap = M[c];
-    M[c] = M[piv];
-    M[piv] = swap;
-    const div = M[c][c];
-    for (let k = c; k <= n; k++) M[c][k] /= div;
-    for (let r = 0; r < n; r++) {
-      if (r === c) continue;
-      const f = M[r][c];
-      for (let k = c; k <= n; k++) M[r][k] -= f * M[c][k];
-    }
-  }
-  return M.map((row) => row[n]);
+function showScreen(mat, on, tex) {
+  if (!mat) return;
+  mat.map = on ? tex : null;
+  mat.emissiveMap = on ? tex : null;
+  mat.color.set(on ? 0xffffff : 0x14171c);
+  mat.emissive.set(on ? 0xffffff : 0x000000);
+  mat.emissiveIntensity = on ? 0.45 : 1;
+  mat.needsUpdate = true;
 }
-
-function placeTv() {
-  const wrap = $("tvwrap");
-  if (!wrap || !state.started || !state.tv || !tvCorners || !camera) {
-    if (wrap) wrap.style.display = "none";
-    return;
-  }
-  const facing = -Math.sin(state.yaw);
-  if (facing < 0.35 || state.x > 2.4) {
-    wrap.style.display = "none";
-    return;
-  }
-  const rect = view.getBoundingClientRect();
-  const pts = tvCorners.map((p) => {
-    const v = p.clone().project(camera);
-    return {
-      x: (v.x * 0.5 + 0.5) * rect.width + rect.left,
-      y: (-v.y * 0.5 + 0.5) * rect.height + rect.top,
-      z: v.z,
-    };
-  });
-  if (pts.some((p) => p.z > 1)) {
-    wrap.style.display = "none";
-    return;
-  }
-  const w = 480;
-  const h = 270;
-  const from = [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: h }, { x: 0, y: h }];
-  const A = [];
-  const b = [];
-  for (let i = 0; i < 4; i++) {
-    const s = from[i];
-    const d = pts[i];
-    A.push([s.x, s.y, 1, 0, 0, 0, -s.x * d.x, -s.y * d.x]);
-    A.push([0, 0, 0, s.x, s.y, 1, -s.x * d.y, -s.y * d.y]);
-    b.push(d.x, d.y);
-  }
-  const h8 = solve8(A, b);
-  if (!h8) {
-    wrap.style.display = "none";
-    return;
-  }
-  const [a, b1, c, d, e, f, g, hh] = h8;
-  wrap.style.display = "block";
-  wrap.style.transform = "matrix3d(" + [a, d, 0, g, b1, e, 0, hh, 0, 0, 1, 0, c, f, 0, 1].join(",") + ")";
-}
-
-const LIVING_STREAM = "https://www.youtube-nocookie.com/embed/q5xC6wv9Ut0?autoplay=1&rel=0&modestbranding=1&playsinline=1";
 
 function setLivingTv(on) {
   state.tv = on;
-  const frameEl = $("tvframe");
-  frameEl.src = on ? LIVING_STREAM : "about:blank";
+  if (!on && tvChannels.length) tvChannel = (tvChannel + 1) % tvChannels.length;
   applyLook();
 }
 
@@ -875,7 +805,6 @@ function frame(now) {
   camera.rotation.order = "YXZ";
   camera.rotation.y = state.yaw;
   camera.rotation.x = state.pitch;
-  placeTv();
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
@@ -1381,6 +1310,148 @@ function dressApartment() {
   top.material = glass;
   addBox(1.92, 0.47, -2.2, 0.22, 0.04, 0.16, white);
   addBox(1.96, 0.51, -2.18, 0.18, 0.03, 0.14, orange);
+  const screenTex = (draw) => {
+    const tex = paintTexture(96, 48, draw);
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.generateMipmaps = false;
+    return tex;
+  };
+  const player = (g, x, y, shirt) => {
+    g.fillStyle = "#f0c9a0";
+    g.fillRect(x, y, 3, 2);
+    g.fillStyle = shirt;
+    g.fillRect(x - 1, y + 2, 5, 3);
+    g.fillStyle = "#2a241e";
+    g.fillRect(x, y + 5, 1, 3);
+    g.fillRect(x + 2, y + 5, 1, 3);
+  };
+  tvChannels = [
+    screenTex((g, w, h) => {
+      g.fillStyle = "#2f6a38";
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = "#3e8f4a";
+      g.fillRect(0, 8, w, h - 8);
+      g.fillStyle = "#f4f7f2";
+      g.fillRect(w / 2 - 1, 8, 2, h - 10);
+      g.strokeStyle = "#f4f7f2";
+      g.lineWidth = 1;
+      g.strokeRect(6, 16, 16, 18);
+      g.strokeRect(w - 22, 16, 16, 18);
+      g.beginPath();
+      g.arc(w / 2, 28, 7, 0, Math.PI * 2);
+      g.stroke();
+      player(g, 28, 22, "#1d4e89");
+      player(g, 40, 30, "#1d4e89");
+      player(g, 58, 20, "#c43b32");
+      player(g, 70, 30, "#c43b32");
+      g.fillStyle = "#f7f7f2";
+      g.fillRect(46, 26, 3, 3);
+      g.fillStyle = "#222";
+      g.fillRect(47, 27, 1, 1);
+    }),
+    screenTex((g, w, h) => {
+      g.fillStyle = "#c47a3a";
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = "#d8924e";
+      for (let y = 0; y < h; y += 4) g.fillRect(0, y, w, 2);
+      g.strokeStyle = "#f4f1ea";
+      g.lineWidth = 1;
+      g.strokeRect(14, 8, w - 28, h - 14);
+      g.beginPath();
+      g.arc(w / 2, h / 2 + 2, 6, 0, Math.PI * 2);
+      g.stroke();
+      g.fillStyle = "#f4f1ea";
+      g.fillRect(w - 10, 16, 2, 10);
+      g.fillRect(w - 16, 18, 8, 2);
+      g.fillStyle = "#e25a1c";
+      g.fillRect(40, 22, 4, 4);
+      player(g, 30, 24, "#1a1a1a");
+      player(g, 62, 18, "#f2f2f2");
+    }),
+    screenTex((g, w, h) => {
+      g.fillStyle = "#3d8f4a";
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = "#8fd0ea";
+      g.fillRect(0, 0, w, 8);
+      g.fillStyle = "#c4a574";
+      g.beginPath();
+      g.moveTo(48, 40);
+      g.lineTo(20, 22);
+      g.lineTo(48, 14);
+      g.lineTo(76, 22);
+      g.closePath();
+      g.fill();
+      g.fillStyle = "#f4f7f2";
+      [[48, 38], [22, 22], [48, 16], [74, 22]].forEach(([x, y]) => g.fillRect(x, y, 3, 2));
+      g.fillStyle = "#d8d2c4";
+      g.fillRect(46, 26, 4, 2);
+      player(g, 40, 30, "#1d4e89");
+      g.fillStyle = "#f4f1ea";
+      g.fillRect(36, 28, 5, 1);
+    }),
+    screenTex((g, w, h) => {
+      g.fillStyle = "#1a4f86";
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = "#163e6b";
+      g.fillRect(0, 0, w, 10);
+      g.fillStyle = "#f2e7c9";
+      g.fillRect(4, 2, 18, 5);
+      const anchor = (x, shirt, hair) => {
+        g.fillStyle = hair;
+        g.fillRect(x, 12, 10, 4);
+        g.fillStyle = "#f0c9a0";
+        g.fillRect(x + 1, 15, 8, 8);
+        g.fillStyle = "#2a241e";
+        g.fillRect(x + 2, 18, 2, 2);
+        g.fillRect(x + 6, 18, 2, 2);
+        g.fillStyle = shirt;
+        g.fillRect(x - 2, 24, 14, 10);
+      };
+      anchor(22, "#c43b32", "#3a2a22");
+      anchor(58, "#245c4a", "#d8c07a");
+      g.fillStyle = "#6b4630";
+      g.fillRect(8, 34, w - 16, 12);
+      g.fillStyle = "#8d6848";
+      g.fillRect(8, 34, w - 16, 2);
+    }),
+  ];
+  bedView = screenTex((g, w, h) => {
+    g.fillStyle = "#8ec8ea";
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = "#ffe08a";
+    g.fillRect(74, 6, 7, 7);
+    g.fillStyle = "#ffffff";
+    g.fillRect(12, 8, 16, 5);
+    g.fillRect(16, 6, 8, 3);
+    g.fillRect(40, 12, 14, 4);
+    g.fillStyle = "#9bb48a";
+    g.beginPath();
+    g.moveTo(0, 28);
+    g.lineTo(22, 16);
+    g.lineTo(40, 26);
+    g.lineTo(62, 14);
+    g.lineTo(w, 26);
+    g.lineTo(w, 32);
+    g.lineTo(0, 32);
+    g.fill();
+    g.fillStyle = "#3f7a4a";
+    g.fillRect(0, 30, w, 6);
+    g.fillStyle = "#3d8eb5";
+    g.fillRect(0, 36, w, h - 36);
+    g.fillStyle = "#d7eef6";
+    g.fillRect(18, 40, 22, 2);
+    g.fillStyle = "#2f5a32";
+    g.fillRect(8, 26, 8, 6);
+    g.fillRect(10, 22, 4, 5);
+    g.fillStyle = "#6b4630";
+    g.fillRect(11, 30, 2, 6);
+    g.fillStyle = "#2f5a32";
+    g.fillRect(78, 24, 9, 7);
+    g.fillRect(80, 20, 5, 5);
+    g.fillStyle = "#6b4630";
+    g.fillRect(82, 30, 2, 6);
+  });
   const tvZ = -2.22;
   const tvW = 1.2;
   addBox(2.7, 1.38, tvZ, 0.05, 0.68, tvW, black);
@@ -1388,13 +1459,6 @@ function dressApartment() {
   tvMat = screenMesh.material;
   tvMat.userData.sticky = true;
   bedMat = screen;
-  const tvFace = 2.664;
-  tvCorners = [
-    new THREE.Vector3(tvFace, 1.66, tvZ - (tvW - 0.08) / 2),
-    new THREE.Vector3(tvFace, 1.66, tvZ + (tvW - 0.08) / 2),
-    new THREE.Vector3(tvFace, 1.10, tvZ + (tvW - 0.08) / 2),
-    new THREE.Vector3(tvFace, 1.10, tvZ - (tvW - 0.08) / 2),
-  ];
   addBox(2.68, 0.96, tvZ, 0.06, 0.07, tvW, black);
   addBox(2.7, 1.55, -1.18, 0.04, 0.7, 0.52, black);
   addPoster(2.67, 1.55, -1.18, 0.42, 0.58, foxTex, -Math.PI / 2);
@@ -1637,7 +1701,7 @@ function dressApartment() {
     { x: -2.62, z: -4.42, reach: 1.6, label: () => waters[0].on ? "E    STOP" : "E    WATER", toggle: () => { waters[0].on = !waters[0].on; } },
     { x: 0.12, z: -0.35, reach: 1.5, label: () => waters[1].on ? "E    STOP" : "E    WATER", toggle: () => { waters[1].on = !waters[1].on; } },
     { x: 0.4, z: 0.45, reach: 1.7, label: () => curtainRig.open ? "E    CLOSE" : "E    CURTAIN", toggle: () => { curtainRig.open = !curtainRig.open; } },
-    { x: 2.55, z: -2.22, reach: 2.2, label: () => state.tv ? "E    TV OFF" : "E    TV", toggle: () => setLivingTv(!state.tv) },
+    { x: 2.55, z: -2.22, reach: 2.2, label: () => state.tv ? "E    TV OFF" : "E    " + tvNames[tvChannel], toggle: () => setLivingTv(!state.tv) },
     { x: -2.15, z: 2.85, reach: 2.2, label: () => state.bedTv ? "E    TV OFF" : "E    TV", toggle: () => { state.bedTv = !state.bedTv; applyLook(); } },
   );
   cabinets.forEach((cab) => {
