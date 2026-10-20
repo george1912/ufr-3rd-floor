@@ -468,30 +468,58 @@ function chooseSwing(door) {
 }
 
 function oakPlanks() {
-  const tex = paintTexture(512, 512, (g, w, h) => {
-    const tones = ["#e6c8a0", "#d4ae7c", "#c99868", "#edd4b0", "#c9a474", "#f0dcc0"];
-    const cols = 6;
-    const pw = w / cols;
-    for (let i = 0; i < cols; i++) {
-      g.fillStyle = tones[i % tones.length];
-      g.fillRect(i * pw, 0, pw - 3, h);
-      g.strokeStyle = "rgba(92, 48, 16, 0.28)";
-      g.lineWidth = 2;
-      for (let k = 0; k < 7; k++) {
-        const y = (k * 78 + i * 31) % h;
+  const tex = paintTexture(1024, 1024, (g, w, h) => {
+    const tones = ["#e4c39a", "#d7b184", "#c9a06e", "#edd4b2", "#c9a474", "#f0dcc0", "#d2a97a", "#e8cba6"];
+    const rows = 10;
+    const ph = h / rows;
+    g.fillStyle = "#c4a078";
+    g.fillRect(0, 0, w, h);
+    for (let i = 0; i < rows; i++) {
+      const y = i * ph;
+      const boards = 2 + (i % 3 === 0 ? 1 : 0);
+      let x = ((i * 173) % 220) - 80;
+      for (let b = 0; b < boards + 2; b++) {
+        const bw = w * (0.42 + ((i * 5 + b * 3) % 5) * 0.08);
+        g.fillStyle = tones[(i + b) % tones.length];
+        g.fillRect(x, y + 1, bw, ph - 2);
+        g.strokeStyle = "rgba(92, 58, 28, 0.16)";
+        g.lineWidth = 1;
+        for (let k = 0; k < 4; k++) {
+          const gy = y + 8 + ((k * 19 + i * 11 + b * 7) % (ph - 16));
+          g.beginPath();
+          g.moveTo(x + 8, gy);
+          g.bezierCurveTo(x + bw * 0.3, gy + 3, x + bw * 0.65, gy - 2, x + bw - 10, gy + 1);
+          g.stroke();
+        }
+        g.fillStyle = "rgba(110, 68, 28, 0.14)";
         g.beginPath();
-        g.moveTo(i * pw + 6, y);
-        g.bezierCurveTo(i * pw + pw * 0.35, y + 16, i * pw + pw * 0.7, y - 10, i * pw + pw - 8, y + 6);
-        g.stroke();
+        g.ellipse(x + bw * 0.45, y + ph * 0.55, 7, 4, 0.4, 0, Math.PI * 2);
+        g.fill();
+        x += bw;
       }
-      g.fillStyle = "rgba(120, 64, 22, 0.28)";
-      g.beginPath();
-      g.ellipse(i * pw + pw * 0.48, (i * 97 + 50) % h, 8, 5, 0.5, 0, Math.PI * 2);
-      g.fill();
     }
   });
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(5, 5);
+  tex.repeat.set(4, 10);
+  tex.anisotropy = 16;
+  return tex;
+}
+
+function wallPaint() {
+  const tex = paintTexture(256, 256, (g, w, h) => {
+    const img = g.createImageData(w, h);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const n = 244 + Math.random() * 11;
+      img.data[i] = n;
+      img.data[i + 1] = n - 1;
+      img.data[i + 2] = n - 3;
+      img.data[i + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+  });
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(6, 6);
+  tex.anisotropy = 8;
   return tex;
 }
 
@@ -525,9 +553,9 @@ function finishPalette() {
       mat.roughness = 0.58;
       mat.metalness = 0.02;
     } else if (mat.userData.role === "material_0" || mat.userData.role === "material_4") {
-      mat.color.set(0xf7f4ef);
-      mat.map = null;
-      mat.roughness = 0.94;
+      mat.color.set(0xfbf9f6);
+      mat.map = wallPaint();
+      mat.roughness = 0.9;
     } else if (mat.userData.role === "material_chrome") {
       mat.metalness = 0.92;
       mat.roughness = 0.18;
@@ -924,6 +952,108 @@ function addKnob(door, x, z, axis, mat) {
   });
 }
 
+function addBaseboards() {
+  const cell = level.cell;
+  const W = level.gridW;
+  const H = level.gridH;
+  const ox = level.origin[0];
+  const oz = level.origin[1];
+  const pieces = [];
+  const height = 0.09;
+  const thick = 0.016;
+  const face = cell * 1.04;
+  for (let r = 0; r < H; r++) {
+    for (let c = 0; c < W; c++) {
+      const i = r * W + c;
+      if (!inside[i] || blocked[i] === 1 || blocked[i] === 3) continue;
+      const x = ox + (c + 0.5) * cell;
+      const z = oz + (r + 0.5) * cell;
+      const wall = (dc, dr) => {
+        const cc = c + dc;
+        const rr = r + dr;
+        if (cc < 0 || rr < 0 || cc >= W || rr >= H) return false;
+        return blocked[rr * W + cc] === 1;
+      };
+      if (wall(1, 0)) pieces.push([x + cell / 2 - thick / 2, height / 2, z, thick, height, face]);
+      if (wall(-1, 0)) pieces.push([x - cell / 2 + thick / 2, height / 2, z, thick, height, face]);
+      if (wall(0, 1)) pieces.push([x, height / 2, z + cell / 2 - thick / 2, face, height, thick]);
+      if (wall(0, -1)) pieces.push([x, height / 2, z - cell / 2 + thick / 2, face, height, thick]);
+    }
+  }
+  if (!pieces.length) return;
+  const mat = dressMat(0xf6f3ee, { roughness: 0.62 });
+  const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), mat, pieces.length);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  const dummy = new THREE.Object3D();
+  pieces.forEach((p, n) => {
+    dummy.position.set(p[0], p[1], p[2]);
+    dummy.scale.set(p[3], p[4], p[5]);
+    dummy.updateMatrix();
+    mesh.setMatrixAt(n, dummy.matrix);
+  });
+  mesh.instanceMatrix.needsUpdate = true;
+  scene.add(mesh);
+}
+
+function addDevices() {
+  const plateMat = dressMat(0xf7f4ee, { roughness: 0.45 });
+  const rimMat = dressMat(0xd5d0c8, { roughness: 0.7 });
+  const ivory = dressMat(0xb7b1a6, { roughness: 0.45 });
+  const slotMat = dressMat(0x2a2a2a, { roughness: 0.4 });
+  const plateGeo = new THREE.BoxGeometry(0.086, 0.132, 0.012);
+  const rimGeo = new THREE.BoxGeometry(0.094, 0.14, 0.004);
+  const rockerGeo = new THREE.BoxGeometry(0.026, 0.04, 0.008);
+  const outletGeo = new THREE.BoxGeometry(0.03, 0.03, 0.006);
+  const slotGeo = new THREE.BoxGeometry(0.011, 0.0035, 0.003);
+  const add = (x, y, z, yaw, kind) => {
+    const group = new THREE.Group();
+    group.position.set(x, y, z);
+    group.rotation.y = yaw;
+    const rim = new THREE.Mesh(rimGeo, rimMat);
+    rim.position.z = -0.004;
+    const plate = new THREE.Mesh(plateGeo, plateMat);
+    plate.castShadow = false;
+    plate.receiveShadow = true;
+    group.add(rim, plate);
+    if (kind === "switch") {
+      const rocker = new THREE.Mesh(rockerGeo, ivory);
+      rocker.position.set(0, 0.006, 0.007);
+      rocker.rotation.x = -0.18;
+      group.add(rocker);
+    } else {
+      [-0.02, 0.02].forEach((yy) => {
+        const face = new THREE.Mesh(outletGeo, ivory);
+        face.position.set(0, yy, 0.006);
+        group.add(face);
+        [-0.005, 0.005].forEach((sx) => {
+          const slot = new THREE.Mesh(slotGeo, slotMat);
+          slot.position.set(sx, yy + 0.004, 0.01);
+          group.add(slot);
+        });
+        const ground = new THREE.Mesh(slotGeo, slotMat);
+        ground.rotation.z = Math.PI / 2;
+        ground.position.set(0, yy - 0.006, 0.01);
+        group.add(ground);
+      });
+    }
+    scene.add(group);
+  };
+  // Living room pier between the south windows, the plate in the gallery photo.
+  add(-1.02, 1.22, -4.86, 0, "switch");
+  add(-1.02, 0.36, -4.86, 0, "outlet");
+  // Kitchen backsplash, facing into the kitchen.
+  add(-2.83, 1.16, -3.55, Math.PI / 2, "outlet");
+  // Bedroom, low outlet under the north windows and a switch by the door.
+  add(-1.12, 0.34, 4.74, Math.PI, "outlet");
+  add(-0.92, 1.2, 1.1, 0, "switch");
+  // Beside the living-room television, facing into the room.
+  add(2.77, 0.36, -1.45, -Math.PI / 2, "outlet");
+  // Bathroom, on the wall inside the door.
+  add(0.22, 1.18, 0.86, Math.PI, "switch");
+  add(0.62, 0.36, 0.86, Math.PI, "outlet");
+}
+
 // Gallery dressings. The scan is the floor plan; these overlays are the
 // finishes from the apartment photos: bedding, island, curtains, art.
 function dressApartment() {
@@ -991,10 +1121,13 @@ function dressApartment() {
   });
   const tile = dressMat(0xffffff, { map: tileTex });
 
-  const blindTex = paintTexture(64, 256, (g, w, h) => {
-    for (let y = 0; y < h; y += 8) {
-      g.fillStyle = y % 16 === 0 ? "#b18448" : "#e4c48a";
-      g.fillRect(0, y, w, 8);
+  const blindTex = paintTexture(128, 512, (g, w, h) => {
+    for (let y = 0; y < h; y += 4) {
+      const light = Math.floor(y / 4) % 2 === 0;
+      g.fillStyle = light ? "#f0d7a4" : "#c49658";
+      g.fillRect(0, y, w, 4);
+      g.fillStyle = light ? "rgba(255,248,230,0.55)" : "rgba(90,50,16,0.18)";
+      g.fillRect(0, y, w, 1);
     }
   });
   const blindMat = dressMat(0xffffff, { map: blindTex });
@@ -1364,6 +1497,8 @@ function dressApartment() {
   [[1.0, 3.4], [0.4, 2.1], [0.2, -2.2], [-1.7, -4.0], [0.3, 0.3]].forEach(([x, z]) => {
     addColumn(x, 2.4, z, 0.07, 0.03, bulb, 12);
   });
+  addBaseboards();
+  addDevices();
 }
 
 async function main() {
@@ -1397,7 +1532,7 @@ async function main() {
   sun.position.set(2.4, 6.2, 1.2);
   sun.target.position.set(0, 0.8, -0.4);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.mapSize.set(4096, 4096);
   sun.shadow.camera.left = -7;
   sun.shadow.camera.right = 7;
   sun.shadow.camera.top = 8;
@@ -1433,6 +1568,7 @@ async function main() {
   for (const rec of level.meshes) {
     const mat = matByName[rec.mat] || matByName.material_1;
     const mesh = buildMesh(bin, rec, mat);
+    if (rec.mat === "material_0" || rec.mat === "material_4") mesh.geometry.computeVertexNormals();
     if (rec.door) {
       const meta = level.doors[doorCursor++];
       const group = new THREE.Group();
