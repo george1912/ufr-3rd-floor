@@ -290,6 +290,7 @@ let tvMat = null;
 let curtainRig = null;
 let cabinets = [];
 let drawers = [];
+let windows = [];
 let waterStreams = [];
 
 function hexBytes(hex) {
@@ -802,7 +803,12 @@ function frame(now) {
     for (const drawer of drawers) {
       const goal = drawer.open ? 1 : 0;
       drawer.amount += (goal - drawer.amount) * Math.min(1, dt * 4);
-      drawer.group.position.x = drawer.x0 + drawer.amount * 0.28;
+      drawer.group.position.x = drawer.x0 - drawer.amount * 0.28;
+    }
+    for (const win of windows) {
+      const goal = win.open ? 1 : 0;
+      win.amount += (goal - win.amount) * Math.min(1, dt * 3);
+      win.mesh.position.y = win.y0 + win.amount * 1.2;
     }
     for (const stream of waterStreams) {
       stream.mesh.visible = stream.on;
@@ -1140,23 +1146,14 @@ function dressApartment() {
   const blindMat = dressMat(0xffffff, { map: blindTex });
 
   const curtainTex = paintTexture(256, 512, (g, w, h) => {
-    g.fillStyle = "#f4f1ea";
+    g.fillStyle = "#f7f4ee";
     g.fillRect(0, 0, w, h);
-    g.strokeStyle = "#1c1c1c";
-    g.lineWidth = 7;
-    for (let col = 0; col < 3; col++) {
-      const x = 42 + col * 86;
-      for (let row = 0; row < 5; row++) {
-        const y = 50 + row * 96;
-        g.beginPath();
-        g.arc(x, y + 42, 26, Math.PI, 0, true);
-        g.stroke();
-        g.beginPath();
-        g.arc(x, y + 62, 4, 0, Math.PI * 2);
-        g.fillStyle = "#1c1c1c";
-        g.fill();
-      }
+    for (let x = 0; x < w; x += 18) {
+      g.fillStyle = x % 36 === 0 ? "rgba(210, 206, 198, 0.55)" : "rgba(255, 255, 255, 0.35)";
+      g.fillRect(x, 0, 10, h);
     }
+    g.fillStyle = "#e4ddd2";
+    g.fillRect(0, h - 28, w, 28);
   });
 
   const foxTex = paintTexture(320, 400, (g, w, h) => {
@@ -1231,15 +1228,57 @@ function dressApartment() {
   mirror.add(frame, glassPane);
   scene.add(mirror);
 
-  // Wood blinds on the three north bedroom windows and the three south windows.
-  const blind = (x, z, w, yaw) => {
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, 1.5), blindMat);
+  // Wood blinds. E lifts them and shows a pixel Brooklyn view: north is the bedroom, south is the kitchen side.
+  const skylineTex = (mode) => {
+    const tex = paintTexture(96, 64, (g, w, h) => {
+      g.fillStyle = mode === "bed" ? "#8ec4ea" : "#f2c89a";
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = mode === "bed" ? "#d5ebf8" : "#f7e2c4";
+      g.fillRect(0, h * 0.35, w, h);
+      g.fillStyle = mode === "bed" ? "#2f6484" : "#6d9474";
+      g.fillRect(0, Math.floor(h * 0.78), w, h);
+      const blocks = mode === "bed"
+        ? [[1, 22, 7, 28], [9, 14, 6, 36], [16, 26, 5, 24], [22, 8, 8, 42], [31, 18, 5, 32], [37, 30, 9, 20], [47, 12, 6, 38], [54, 24, 10, 26], [66, 6, 8, 44], [75, 20, 7, 30], [83, 28, 8, 22]]
+        : [[2, 34, 8, 16], [11, 30, 7, 20], [19, 36, 6, 14], [26, 22, 5, 28], [32, 32, 9, 18], [42, 18, 4, 32], [47, 28, 8, 22], [56, 16, 6, 34], [63, 34, 10, 16], [74, 24, 7, 26], [82, 30, 10, 20]];
+      blocks.forEach(([x, top, bw, bh], i) => {
+        g.fillStyle = mode === "bed"
+          ? (i % 3 === 0 ? "#243044" : "#3c4c62")
+          : (i % 2 === 0 ? "#8a4e3c" : "#c4a06a");
+        g.fillRect(x, top, bw, h - top - Math.floor(h * 0.2));
+        g.fillStyle = mode === "bed" ? "#f4e7a8" : "#fff4d2";
+        for (let yy = top + 4; yy < h * 0.72; yy += 6) {
+          for (let xx = x + 1; xx < x + bw - 1; xx += 3) g.fillRect(xx, yy, 1, 2);
+        }
+      });
+      if (mode !== "bed") {
+        g.strokeStyle = "#5c4030";
+        g.lineWidth = 2;
+        g.beginPath();
+        g.moveTo(40, 40);
+        g.lineTo(52, 18);
+        g.lineTo(70, 40);
+        g.stroke();
+      }
+    });
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.generateMipmaps = false;
+    return tex;
+  };
+  const bedSky = dressMat(0xffffff, { map: skylineTex("bed"), roughness: 1 });
+  const kitSky = dressMat(0xffffff, { map: skylineTex("kit"), roughness: 1 });
+  const blind = (x, z, w, yaw, skyMat, skyZ) => {
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, 1.45), blindMat);
     mesh.position.set(x, 1.35, z);
     mesh.rotation.y = yaw;
-    scene.add(mesh);
+    const view = new THREE.Mesh(new THREE.PlaneGeometry(Math.max(0.4, w * 0.82), 1.2), skyMat);
+    view.position.set(x, 1.32, skyZ);
+    view.rotation.y = yaw;
+    scene.add(mesh, view);
+    windows.push({ mesh, open: false, amount: 0, y0: 1.35, x, z });
   };
-  [[-2.19, 0.91], [-0.21, 0.89], [1.88, 0.88]].forEach(([x, w]) => blind(x, 4.92, w, Math.PI));
-  [[-2.11, 0.91], [0.03, 0.89], [1.85, 1.2]].forEach(([x, w]) => blind(x, -5.06, w, 0));
+  [[-2.19, 0.91], [-0.21, 0.89], [1.88, 0.88]].forEach(([x, w]) => blind(x, 4.92, w, Math.PI, bedSky, 5.05));
+  [[-2.11, 0.91], [0.03, 0.89], [1.85, 1.2]].forEach(([x, w]) => blind(x, -5.06, w, 0, kitSky, -5.18));
 
   // Living room. Low seat, tall back, and arms so it reads as the boucle sofa.
   addBox(0.45, 0.012, -2.2, 2.7, 0.02, 2.15, rug);
@@ -1304,31 +1343,31 @@ function dressApartment() {
   });
   [-4.18, -3.48].forEach((z) => {
     const group = new THREE.Group();
-    const x0 = -0.5;
+    const x0 = -1.48;
     group.position.set(x0, 0.46, z);
     const bin = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.1, 0.34), dressMat(0x2c2c2c, { roughness: 0.7 }));
-    bin.position.set(-0.15, -0.02, 0);
+    bin.position.set(0.16, -0.02, 0);
     const front = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.16, 0.4), black);
-    front.position.set(0.012, 0, 0);
+    front.position.set(-0.014, 0, 0);
     const pull = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.028, 0.1), steel);
-    pull.position.set(0.03, 0, 0);
+    pull.position.set(-0.032, 0, 0);
     group.add(bin, front, pull);
     const utensil = dressMat(0xc5ccd0, { metalness: 0.72, roughness: 0.28 });
     const woodHandle = dressMat(0x8a5a32, { roughness: 0.55 });
     [-0.1, -0.02, 0.06].forEach((uz, n) => {
       const spoon = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.008, 0.028), utensil);
-      spoon.position.set(-0.16, 0.04, uz);
+      spoon.position.set(0.16, 0.04, uz);
       spoon.rotation.y = n === 1 ? 0.4 : -0.15;
       group.add(spoon);
     });
     const spatula = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.008, 0.05), woodHandle);
-    spatula.position.set(-0.18, 0.045, 0.12);
+    spatula.position.set(0.18, 0.045, 0.12);
     group.add(spatula);
     const blade = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.006, 0.055), utensil);
-    blade.position.set(-0.08, 0.05, 0.12);
+    blade.position.set(0.08, 0.05, 0.12);
     group.add(blade);
     scene.add(group);
-    drawers.push({ group, open: false, amount: 0, x0, x: -0.35, z });
+    drawers.push({ group, open: false, amount: 0, x0, x: -1.85, z });
   });
   addColumn(-0.85, 1.05, -3.7, 0.1, 0.06, white, 12);
   addColumn(-0.78, 1.1, -3.62, 0.045, 0.07, orange, 8);
@@ -1413,20 +1452,20 @@ function dressApartment() {
   addBox(wx, 0.78, front - 0.008, 0.28, 0.035, 0.012, charcoal);
   addBox(wx, 1.52, front - 0.008, 0.26, 0.03, 0.012, charcoal);
 
-  // Bedroom closet: a black hamper and a square shoe cubby.
-  addBox(2.28, 0.2, 0.7, 0.34, 0.4, 0.3, black);
-  addBox(2.28, 0.42, 0.7, 0.3, 0.03, 0.26, charcoal);
-  const cubby = dressMat(0xe7e2da, { roughness: 0.72 });
+  // Bedroom closet, kept inside the closet so it does not poke through the wall.
+  addBox(2.22, 0.22, 0.7, 0.28, 0.4, 0.22, black);
+  addBox(2.22, 0.44, 0.7, 0.24, 0.03, 0.18, charcoal);
+  const cubby = dressMat(0xd8d2c8, { roughness: 0.72 });
   const shoe = dressMat(0x2a2420, { roughness: 0.6 });
-  const cx = 1.78;
+  const cx = 1.82;
   const cz = 0.7;
-  addBox(cx, 0.32, cz + 0.12, 0.48, 0.64, 0.02, cubby);
-  addBox(cx - 0.23, 0.32, cz, 0.018, 0.64, 0.26, cubby);
-  addBox(cx + 0.23, 0.32, cz, 0.018, 0.64, 0.26, cubby);
-  addBox(cx, 0.32, cz, 0.018, 0.64, 0.26, cubby);
-  [0.02, 0.23, 0.44, 0.64].forEach((y) => addBox(cx, y, cz, 0.48, 0.016, 0.26, cubby));
-  [[cx - 0.11, 0.07], [cx + 0.11, 0.28], [cx - 0.11, 0.49]].forEach(([x, y]) => {
-    addBox(x, y, cz - 0.01, 0.13, 0.035, 0.16, shoe);
+  addBox(cx, 0.36, cz + 0.08, 0.36, 0.56, 0.016, cubby);
+  addBox(cx - 0.17, 0.36, cz, 0.016, 0.56, 0.16, cubby);
+  addBox(cx + 0.17, 0.36, cz, 0.016, 0.56, 0.16, cubby);
+  addBox(cx, 0.36, cz, 0.016, 0.56, 0.16, cubby);
+  [0.1, 0.28, 0.46, 0.64].forEach((y) => addBox(cx, y, cz, 0.36, 0.014, 0.16, cubby));
+  [[cx - 0.08, 0.15], [cx + 0.08, 0.33], [cx - 0.08, 0.51]].forEach(([x, y]) => {
+    addBox(x, y, cz, 0.1, 0.03, 0.12, shoe);
   });
 
   // Bathroom. Black vanity, arch curtain, mat, and a framed mirror.
@@ -1495,6 +1534,18 @@ function dressApartment() {
       label: () => drawer.open ? "E    CLOSE" : "E    DRAWER",
       toggle: () => { drawer.open = !drawer.open; },
     });
+  });
+  windows.forEach((win) => {
+    fixtures.push({
+      x: win.x, z: win.z, reach: 2.4,
+      label: () => win.open ? "E    CLOSE" : "E    WINDOW",
+      toggle: () => { win.open = !win.open; },
+    });
+  });
+  fixtures.push({
+    x: 2.05, z: -0.4, reach: 1.7,
+    label: () => "E    WASH",
+    toggle: () => playWasher(),
   });
   waterStreams = waters;
 
@@ -1663,6 +1714,42 @@ function startAudio() {
   if (!Ctx) return;
   audio = new Ctx();
   if (audio.state === "suspended") audio.resume();
+}
+
+function playWasher() {
+  startAudio();
+  if (!audio) return;
+  const t = audio.currentTime;
+  const osc = audio.createOscillator();
+  const gain = audio.createGain();
+  const filter = audio.createBiquadFilter();
+  osc.type = "sawtooth";
+  osc.frequency.setValueAtTime(80, t);
+  osc.frequency.linearRampToValueAtTime(150, t + 0.35);
+  osc.frequency.linearRampToValueAtTime(64, t + 1.5);
+  filter.type = "lowpass";
+  filter.frequency.value = 420;
+  gain.gain.setValueAtTime(0.0001, t);
+  gain.gain.exponentialRampToValueAtTime(0.045, t + 0.06);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + 1.6);
+  osc.connect(filter);
+  filter.connect(gain);
+  gain.connect(audio.destination);
+  osc.start(t);
+  osc.stop(t + 1.65);
+  for (let i = 0; i < 4; i++) {
+    const thump = audio.createOscillator();
+    const thumpGain = audio.createGain();
+    const tt = t + 0.12 + i * 0.32;
+    thump.type = "square";
+    thump.frequency.value = 55;
+    thumpGain.gain.setValueAtTime(0.06, tt);
+    thumpGain.gain.exponentialRampToValueAtTime(0.0001, tt + 0.07);
+    thump.connect(thumpGain);
+    thumpGain.connect(audio.destination);
+    thump.start(tt);
+    thump.stop(tt + 0.08);
+  }
 }
 
 function beginTour() {
