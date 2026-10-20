@@ -696,6 +696,7 @@ function updatePrompt() {
   const fz = -Math.cos(state.yaw);
   let bestUse = 0.2;
   for (const item of fixtures) {
+    if (item.when && !item.when()) continue;
     const dx = item.x - state.x;
     const dz = item.z - state.z;
     const dist = Math.hypot(dx, dz);
@@ -707,11 +708,15 @@ function updatePrompt() {
   }
   let bestScore = 0;
   const touching = [];
+  const inWasherCloset = state.x > 1.45 && state.x < 2.85 && state.z > -0.62 && state.z < 0.05;
   for (const door of doors) {
+    const laundry = (door.meta.name || "").indexOf("1d711765") !== -1;
+    if (laundry && inWasherCloset) continue;
     const leaf = doorLeaf(door);
     const hit = rayLeaf(state.x, state.z, fx, fz, leaf);
     const radius = aimRadius(door);
-    if (hit.t > 0.05 && hit.t < 2.2 && hit.miss < radius && hit.dot > 0.45) {
+    const maxT = laundry ? 1.2 : 2.2;
+    if (hit.t > 0.05 && hit.t < maxT && hit.miss < radius && hit.dot > 0.45) {
       const score = (1 - hit.miss / radius) / (hit.t + 0.3);
       if (score > bestScore) { bestScore = score; nearestDoor = door; }
     }
@@ -808,7 +813,7 @@ function frame(now) {
     for (const win of windows) {
       const goal = win.open ? 1 : 0;
       win.amount += (goal - win.amount) * Math.min(1, dt * 3);
-      win.mesh.position.y = win.y0 + win.amount * 1.2;
+      win.mesh.position.y = win.y0 + win.amount * 1.55;
     }
     for (const stream of waterStreams) {
       stream.mesh.visible = stream.on;
@@ -963,50 +968,6 @@ function addKnob(door, x, z, axis, mat) {
     mesh.position.set(x - door.meta.hinge[0], 0.98, z - door.meta.hinge[1]);
     door.group.add(mesh);
   });
-}
-
-function addBaseboards() {
-  const cell = level.cell;
-  const W = level.gridW;
-  const H = level.gridH;
-  const ox = level.origin[0];
-  const oz = level.origin[1];
-  const pieces = [];
-  const height = 0.09;
-  const thick = 0.016;
-  const face = cell * 1.04;
-  for (let r = 0; r < H; r++) {
-    for (let c = 0; c < W; c++) {
-      const i = r * W + c;
-      if (!inside[i] || blocked[i] === 1 || blocked[i] === 3) continue;
-      const x = ox + (c + 0.5) * cell;
-      const z = oz + (r + 0.5) * cell;
-      const wall = (dc, dr) => {
-        const cc = c + dc;
-        const rr = r + dr;
-        if (cc < 0 || rr < 0 || cc >= W || rr >= H) return false;
-        return blocked[rr * W + cc] === 1;
-      };
-      if (wall(1, 0)) pieces.push([x + cell / 2 - thick / 2, height / 2, z, thick, height, face]);
-      if (wall(-1, 0)) pieces.push([x - cell / 2 + thick / 2, height / 2, z, thick, height, face]);
-      if (wall(0, 1)) pieces.push([x, height / 2, z + cell / 2 - thick / 2, face, height, thick]);
-      if (wall(0, -1)) pieces.push([x, height / 2, z - cell / 2 + thick / 2, face, height, thick]);
-    }
-  }
-  if (!pieces.length) return;
-  const mat = dressMat(0xf6f3ee, { roughness: 0.62 });
-  const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), mat, pieces.length);
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  const dummy = new THREE.Object3D();
-  pieces.forEach((p, n) => {
-    dummy.position.set(p[0], p[1], p[2]);
-    dummy.scale.set(p[3], p[4], p[5]);
-    dummy.updateMatrix();
-    mesh.setMatrixAt(n, dummy.matrix);
-  });
-  mesh.instanceMatrix.needsUpdate = true;
-  scene.add(mesh);
 }
 
 function addDevices() {
@@ -1228,35 +1189,65 @@ function dressApartment() {
   mirror.add(frame, glassPane);
   scene.add(mirror);
 
-  // Wood blinds. E lifts them and shows a pixel Brooklyn view: north is the bedroom, south is the kitchen side.
+  // Wood blinds. E lifts them onto a pixel Brooklyn view.
+  // North is the bedroom, the west south window is the kitchen, and the living-room windows get more sky.
   const skylineTex = (mode) => {
     const tex = paintTexture(96, 64, (g, w, h) => {
-      g.fillStyle = mode === "bed" ? "#8ec4ea" : "#f2c89a";
+      const skyTop = mode === "bed" ? "#8ec4ea" : mode === "live" ? "#3d94d4" : "#f2c89a";
+      const skyLow = mode === "bed" ? "#d7eef8" : mode === "live" ? "#b9ddf4" : "#f7e2c4";
+      g.fillStyle = skyTop;
       g.fillRect(0, 0, w, h);
-      g.fillStyle = mode === "bed" ? "#d5ebf8" : "#f7e2c4";
-      g.fillRect(0, h * 0.35, w, h);
-      g.fillStyle = mode === "bed" ? "#2f6484" : "#6d9474";
-      g.fillRect(0, Math.floor(h * 0.78), w, h);
+      g.fillStyle = skyLow;
+      g.fillRect(0, Math.floor(h * (mode === "live" ? 0.34 : 0.32)), w, h);
+      const clouds = mode === "live"
+        ? [[2, 24, 20, 7], [26, 20, 22, 8], [52, 26, 18, 6], [72, 18, 20, 7]]
+        : mode === "bed"
+          ? [[8, 5, 14, 4], [46, 3, 16, 5], [74, 7, 14, 4]]
+          : [[6, 4, 14, 4], [36, 2, 18, 5], [70, 6, 14, 4]];
+      clouds.forEach(([x, y, cw, ch]) => {
+        g.fillStyle = "#ffffff";
+        g.fillRect(x, y, cw, ch);
+        g.fillRect(x + 3, Math.max(0, y - 2), Math.max(4, cw - 8), 3);
+        g.fillStyle = mode === "kit" ? "#f4e4cf" : "#d5e6f2";
+        g.fillRect(x, y + ch - 2, cw, 2);
+      });
+      const waterTop = mode === "live" ? 0.82 : 0.78;
+      g.fillStyle = mode === "bed" ? "#2f6484" : mode === "live" ? "#3f7ea3" : "#6d9474";
+      g.fillRect(0, Math.floor(h * waterTop), w, h);
       const blocks = mode === "bed"
-        ? [[1, 22, 7, 28], [9, 14, 6, 36], [16, 26, 5, 24], [22, 8, 8, 42], [31, 18, 5, 32], [37, 30, 9, 20], [47, 12, 6, 38], [54, 24, 10, 26], [66, 6, 8, 44], [75, 20, 7, 30], [83, 28, 8, 22]]
-        : [[2, 34, 8, 16], [11, 30, 7, 20], [19, 36, 6, 14], [26, 22, 5, 28], [32, 32, 9, 18], [42, 18, 4, 32], [47, 28, 8, 22], [56, 16, 6, 34], [63, 34, 10, 16], [74, 24, 7, 26], [82, 30, 10, 20]];
-      blocks.forEach(([x, top, bw, bh], i) => {
+        ? [[1, 22, 7], [9, 14, 6], [16, 26, 5], [22, 8, 8], [31, 18, 5], [37, 30, 9], [47, 12, 6], [54, 24, 10], [66, 6, 8], [75, 20, 7], [83, 28, 8]]
+        : mode === "live"
+          ? [[1, 42, 7], [10, 38, 6], [18, 46, 8], [28, 36, 5], [35, 44, 9], [46, 40, 6], [54, 34, 7], [63, 46, 8], [73, 38, 6], [81, 44, 10]]
+          : [[2, 34, 8], [11, 30, 7], [19, 36, 6], [26, 22, 5], [32, 32, 9], [42, 18, 4], [47, 28, 8], [56, 16, 6], [63, 34, 10], [74, 24, 7], [82, 30, 10]];
+      const waterCut = Math.floor(h * (mode === "live" ? 0.16 : 0.2));
+      blocks.forEach(([x, top, bw], i) => {
         g.fillStyle = mode === "bed"
           ? (i % 3 === 0 ? "#243044" : "#3c4c62")
-          : (i % 2 === 0 ? "#8a4e3c" : "#c4a06a");
-        g.fillRect(x, top, bw, h - top - Math.floor(h * 0.2));
-        g.fillStyle = mode === "bed" ? "#f4e7a8" : "#fff4d2";
-        for (let yy = top + 4; yy < h * 0.72; yy += 6) {
+          : mode === "live"
+            ? (i % 2 === 0 ? "#31445c" : "#5d6e82")
+            : (i % 2 === 0 ? "#8a4e3c" : "#c4a06a");
+        g.fillRect(x, top, bw, h - top - waterCut);
+        g.fillStyle = mode === "kit" ? "#fff4d2" : "#f4e7a8";
+        for (let yy = top + 3; yy < h * (mode === "live" ? 0.78 : 0.72); yy += 6) {
           for (let xx = x + 1; xx < x + bw - 1; xx += 3) g.fillRect(xx, yy, 1, 2);
         }
       });
-      if (mode !== "bed") {
+      if (mode === "kit") {
         g.strokeStyle = "#5c4030";
         g.lineWidth = 2;
         g.beginPath();
         g.moveTo(40, 40);
         g.lineTo(52, 18);
         g.lineTo(70, 40);
+        g.stroke();
+      }
+      if (mode === "live") {
+        g.strokeStyle = "#6d5a48";
+        g.lineWidth = 2;
+        g.beginPath();
+        g.moveTo(18, 50);
+        g.lineTo(34, 40);
+        g.lineTo(52, 50);
         g.stroke();
       }
     });
@@ -1267,18 +1258,20 @@ function dressApartment() {
   };
   const bedSky = dressMat(0xffffff, { map: skylineTex("bed"), roughness: 1 });
   const kitSky = dressMat(0xffffff, { map: skylineTex("kit"), roughness: 1 });
+  const liveSky = dressMat(0xffffff, { map: skylineTex("live"), roughness: 1 });
   const blind = (x, z, w, yaw, skyMat, skyZ) => {
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, 1.45), blindMat);
     mesh.position.set(x, 1.35, z);
     mesh.rotation.y = yaw;
-    const view = new THREE.Mesh(new THREE.PlaneGeometry(Math.max(0.4, w * 0.82), 1.2), skyMat);
-    view.position.set(x, 1.32, skyZ);
+    const view = new THREE.Mesh(new THREE.PlaneGeometry(Math.max(0.4, w * 0.86), 1.35), skyMat);
+    view.position.set(x, 1.42, skyZ);
     view.rotation.y = yaw;
     scene.add(mesh, view);
     windows.push({ mesh, open: false, amount: 0, y0: 1.35, x, z });
   };
   [[-2.19, 0.91], [-0.21, 0.89], [1.88, 0.88]].forEach(([x, w]) => blind(x, 4.92, w, Math.PI, bedSky, 5.05));
-  [[-2.11, 0.91], [0.03, 0.89], [1.85, 1.2]].forEach(([x, w]) => blind(x, -5.06, w, 0, kitSky, -5.18));
+  [[-2.11, 0.91]].forEach(([x, w]) => blind(x, -5.06, w, 0, kitSky, -5.1));
+  [[0.03, 0.89], [1.85, 1.2]].forEach(([x, w]) => blind(x, -5.06, w, 0, liveSky, -5.1));
 
   // Living room. Low seat, tall back, and arms so it reads as the boucle sofa.
   addBox(0.45, 0.012, -2.2, 2.7, 0.02, 2.15, rug);
@@ -1441,7 +1434,7 @@ function dressApartment() {
   addBox(-1.9, 0.012, -4.35, 0.55, 0.015, 0.8, black);
 
   // Stacked washer and dryer, fully inside the laundry closet. No spill tray under the stack.
-  const wx = 2.05, wz = -0.4, wd = 0.4;
+  const wx = 2.05, wz = -0.22, wd = 0.34;
   const front = wz - wd / 2;
   addBox(wx, 0.4, wz, 0.56, 0.76, wd, white);
   addBox(wx, 1.18, wz, 0.56, 0.74, wd, white);
@@ -1543,9 +1536,10 @@ function dressApartment() {
     });
   });
   fixtures.push({
-    x: 2.05, z: -0.4, reach: 1.7,
+    x: 2.05, z: -0.39, reach: 0.95,
     label: () => "E    WASH",
     toggle: () => playWasher(),
+    when: () => state.x > 1.45 && state.x < 2.85 && state.z > -0.7 && state.z < -0.05,
   });
   waterStreams = waters;
 
@@ -1612,7 +1606,6 @@ function dressApartment() {
   [[1.0, 3.4], [0.4, 2.1], [0.2, -2.2], [-1.7, -4.0], [0.3, 0.3]].forEach(([x, z]) => {
     addColumn(x, 2.4, z, 0.07, 0.03, bulb, 12);
   });
-  addBaseboards();
   addDevices();
 }
 
