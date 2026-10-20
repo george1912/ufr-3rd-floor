@@ -289,6 +289,7 @@ const fixtures = [];
 let tvMat = null;
 let curtainRig = null;
 let cabinets = [];
+let drawers = [];
 let waterStreams = [];
 
 function hexBytes(hex) {
@@ -798,6 +799,11 @@ function frame(now) {
       cab.amount += (goal - cab.amount) * Math.min(1, dt * 4);
       cab.group.rotation.y = cab.amount * cab.sign * Math.PI * 0.5;
     }
+    for (const drawer of drawers) {
+      const goal = drawer.open ? 1 : 0;
+      drawer.amount += (goal - drawer.amount) * Math.min(1, dt * 4);
+      drawer.group.position.x = drawer.x0 + drawer.amount * 0.28;
+    }
     for (const stream of waterStreams) {
       stream.mesh.visible = stream.on;
       if (stream.on) stream.mesh.scale.y = 0.82 + Math.sin(now / 90) * 0.18;
@@ -887,7 +893,8 @@ function addTube(x, y, z, radius, length, mat, axis) {
 const CARVE = [
   [-0.5, 0.05, -3.2, 0.65, 1.05, -1.25],
   [0.95, 0.05, -4.1, 1.85, 1.05, -3.1],
-  [1.55, 0.05, -1.15, 2.55, 1.4, -0.22],
+  [1.4, 0.0, -1.2, 2.75, 1.75, -0.02],
+  [1.5, 0.0, -0.12, 2.65, 0.22, 0.4],
   [-0.2, 0.05, 2.65, 2.35, 1.05, 4.6],
   [2.48, 0.05, 3.82, 2.95, 1.05, 4.65],
   [2.72, 0.55, -3.2, 2.98, 1.95, -1.15],
@@ -1268,7 +1275,8 @@ function dressApartment() {
   addBox(2.68, 0.96, tvZ, 0.06, 0.07, tvW, black);
   addBox(2.7, 1.55, -1.18, 0.04, 0.7, 0.52, black);
   addPoster(2.67, 1.55, -1.18, 0.42, 0.58, foxTex, -Math.PI / 2);
-  addColumn(-1.05, 0.18, -2.35, 0.22, 0.36, leather, 14);
+  const ottoman = addColumn(1.05, 0.13, -2.15, 0.28, 0.26, leather, 20);
+  ottoman.scale.y = 0.85;
   // Armchair: wood legs and arms, a seat, and a back, facing into the room.
   [[1.16, -3.82], [1.62, -3.82], [1.16, -3.36], [1.62, -3.36]].forEach(([x, z]) => {
     addColumn(x, 0.16, z, 0.028, 0.32, wood, 8);
@@ -1283,11 +1291,44 @@ function dressApartment() {
   });
   addBox(1.25, 0.52, -3.5, 0.18, 0.14, 0.18, orange);
 
-  // Kitchen. The block east of the counters is the black island; two stools tuck under it.
+  // Kitchen. The block east of the counters is the black island. Two stools sit clear of it, facing in.
   addBox(-0.99, 0.47, -3.87, 0.98, 0.94, 1.32, black);
-  [-4.19, -3.54].forEach((z) => {
-    addColumn(-0.32, 0.28, z, 0.035, 0.56, black, 8);
-    addColumn(-0.32, 0.68, z, 0.18, 0.22, cream, 14);
+  [-4.18, -3.48].forEach((z) => {
+    const sx = -0.08;
+    [[sx - 0.16, z - 0.16], [sx + 0.16, z - 0.16], [sx - 0.16, z + 0.16], [sx + 0.16, z + 0.16]].forEach(([x, zz]) => {
+      addColumn(x, 0.31, zz, 0.018, 0.62, black, 8);
+    });
+    addBox(sx, 0.64, z, 0.42, 0.06, 0.42, cream);
+    addBox(sx + 0.16, 0.86, z, 0.06, 0.4, 0.38, cream);
+    addTube(sx + 0.16, 1.06, z, 0.04, 0.36, cream, "z");
+  });
+  [-4.18, -3.48].forEach((z) => {
+    const group = new THREE.Group();
+    const x0 = -0.5;
+    group.position.set(x0, 0.46, z);
+    const bin = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.1, 0.34), dressMat(0x2c2c2c, { roughness: 0.7 }));
+    bin.position.set(-0.15, -0.02, 0);
+    const front = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.16, 0.4), black);
+    front.position.set(0.012, 0, 0);
+    const pull = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.028, 0.1), steel);
+    pull.position.set(0.03, 0, 0);
+    group.add(bin, front, pull);
+    const utensil = dressMat(0xc5ccd0, { metalness: 0.72, roughness: 0.28 });
+    const woodHandle = dressMat(0x8a5a32, { roughness: 0.55 });
+    [-0.1, -0.02, 0.06].forEach((uz, n) => {
+      const spoon = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.008, 0.028), utensil);
+      spoon.position.set(-0.16, 0.04, uz);
+      spoon.rotation.y = n === 1 ? 0.4 : -0.15;
+      group.add(spoon);
+    });
+    const spatula = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.008, 0.05), woodHandle);
+    spatula.position.set(-0.18, 0.045, 0.12);
+    group.add(spatula);
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.006, 0.055), utensil);
+    blade.position.set(-0.08, 0.05, 0.12);
+    group.add(blade);
+    scene.add(group);
+    drawers.push({ group, open: false, amount: 0, x0, x: -0.35, z });
   });
   addColumn(-0.85, 1.05, -3.7, 0.1, 0.06, white, 12);
   addColumn(-0.78, 1.1, -3.62, 0.045, 0.07, orange, 8);
@@ -1360,17 +1401,33 @@ function dressApartment() {
   addBox(-2.17, 0.55, -3.46, 0.03, 0.03, 0.4, steel);
   addBox(-1.9, 0.012, -4.35, 0.55, 0.015, 0.8, black);
 
-  // Stacked washer and dryer inside the laundry closet, behind the sliding door.
-  const wx = 2.05, wz = -0.08;
-  addBox(wx, 0.04, wz, 0.64, 0.08, 0.62, charcoal);
-  addBox(wx, 0.46, wz, 0.64, 0.76, 0.62, white);
-  addBox(wx, 1.28, wz, 0.64, 0.74, 0.62, white);
-  addTube(wx, 0.48, wz - 0.32, 0.2, 0.04, charcoal, "z");
-  addTube(wx, 0.48, wz - 0.345, 0.13, 0.03, steel, "z");
-  addTube(wx, 1.28, wz - 0.32, 0.18, 0.04, charcoal, "z");
-  addTube(wx, 1.28, wz - 0.345, 0.11, 0.03, steel, "z");
-  addBox(wx, 0.86, wz - 0.32, 0.36, 0.05, 0.02, charcoal);
-  addBox(wx, 1.62, wz - 0.32, 0.36, 0.045, 0.02, charcoal);
+  // Stacked washer and dryer, fully inside the laundry closet. No spill tray under the stack.
+  const wx = 2.05, wz = -0.4, wd = 0.4;
+  const front = wz - wd / 2;
+  addBox(wx, 0.4, wz, 0.56, 0.76, wd, white);
+  addBox(wx, 1.18, wz, 0.56, 0.74, wd, white);
+  addTube(wx, 0.4, front - 0.012, 0.15, 0.02, charcoal, "z");
+  addTube(wx, 0.4, front - 0.02, 0.1, 0.012, steel, "z");
+  addTube(wx, 1.18, front - 0.012, 0.13, 0.02, charcoal, "z");
+  addTube(wx, 1.18, front - 0.02, 0.08, 0.012, steel, "z");
+  addBox(wx, 0.78, front - 0.008, 0.28, 0.035, 0.012, charcoal);
+  addBox(wx, 1.52, front - 0.008, 0.26, 0.03, 0.012, charcoal);
+
+  // Bedroom closet: a black hamper and a square shoe cubby.
+  addBox(2.28, 0.2, 0.7, 0.34, 0.4, 0.3, black);
+  addBox(2.28, 0.42, 0.7, 0.3, 0.03, 0.26, charcoal);
+  const cubby = dressMat(0xe7e2da, { roughness: 0.72 });
+  const shoe = dressMat(0x2a2420, { roughness: 0.6 });
+  const cx = 1.78;
+  const cz = 0.7;
+  addBox(cx, 0.32, cz + 0.12, 0.48, 0.64, 0.02, cubby);
+  addBox(cx - 0.23, 0.32, cz, 0.018, 0.64, 0.26, cubby);
+  addBox(cx + 0.23, 0.32, cz, 0.018, 0.64, 0.26, cubby);
+  addBox(cx, 0.32, cz, 0.018, 0.64, 0.26, cubby);
+  [0.02, 0.23, 0.44, 0.64].forEach((y) => addBox(cx, y, cz, 0.48, 0.016, 0.26, cubby));
+  [[cx - 0.11, 0.07], [cx + 0.11, 0.28], [cx - 0.11, 0.49]].forEach(([x, y]) => {
+    addBox(x, y, cz - 0.01, 0.13, 0.035, 0.16, shoe);
+  });
 
   // Bathroom. Black vanity, arch curtain, mat, and a framed mirror.
   addBox(0.1, 0.4, -0.28, 0.66, 0.8, 0.5, black);
@@ -1430,6 +1487,13 @@ function dressApartment() {
       x: cab.x, z: cab.z, reach: 1.8,
       label: () => cab.open ? "E    CLOSE" : "E    CABINET",
       toggle: () => { cab.open = !cab.open; },
+    });
+  });
+  drawers.forEach((drawer) => {
+    fixtures.push({
+      x: drawer.x, z: drawer.z, reach: 1.6,
+      label: () => drawer.open ? "E    CLOSE" : "E    DRAWER",
+      toggle: () => { drawer.open = !drawer.open; },
     });
   });
   waterStreams = waters;
