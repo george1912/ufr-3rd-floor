@@ -82,7 +82,7 @@
     display: none;
     position: fixed;
     inset: 0 0 var(--hud) 0;
-    z-index: 4;
+    z-index: 3;
     touch-action: none;
   }
   body.touch #touch { display: block; }
@@ -133,6 +133,31 @@
     min-width: 58px; min-height: 36px;
     font-size: 11px;
   }
+  #dpad {
+    position: fixed;
+    left: max(12px, env(safe-area-inset-left));
+    bottom: calc(var(--hud) + 12px);
+    z-index: 4;
+    display: grid;
+    grid-template-columns: 40px 40px 40px;
+    grid-template-rows: 40px 40px 40px;
+    gap: 4px;
+    touch-action: none;
+  }
+  #dpad button {
+    font: inherit;
+    color: var(--ink);
+    background: rgba(18, 12, 9, 0.55);
+    border: 1px solid rgba(184, 154, 114, 0.55);
+    border-radius: 10px;
+    padding: 0;
+    touch-action: none;
+  }
+  #dpad button:active { background: rgba(240, 221, 184, 0.28); }
+  #dpad button[data-y="1"] { grid-column: 2; grid-row: 1; }
+  #dpad button[data-x="-1"] { grid-column: 1; grid-row: 2; }
+  #dpad button[data-x="1"] { grid-column: 3; grid-row: 2; }
+  #dpad button[data-y="-1"] { grid-column: 2; grid-row: 3; }
 </style>
 </head>
 <body>
@@ -165,6 +190,12 @@
     </ul>
   </div>
 </div>
+<div id="dpad" aria-label="Move">
+  <button type="button" data-x="0" data-y="1" aria-label="Forward">▲</button>
+  <button type="button" data-x="-1" data-y="0" aria-label="Left">◀</button>
+  <button type="button" data-x="1" data-y="0" aria-label="Right">▶</button>
+  <button type="button" data-x="0" data-y="-1" aria-label="Back">▼</button>
+</div>
 <div id="touch">
   <div id="stickMove" class="floatstick" aria-hidden="true"><div class="nub"></div></div>
   <div id="stickLook" class="floatstick" aria-hidden="true"><div class="nub"></div></div>
@@ -186,6 +217,7 @@ const state = {
 };
 const touchMove = { x: 0, y: 0 };
 const touchLook = { x: 0, y: 0 };
+const dpad = { x: 0, y: 0 };
 const finePointer = window.matchMedia("(pointer: fine)").matches;
 const touchPreferred = window.matchMedia("(pointer: coarse)").matches && !finePointer;
 if (touchPreferred) {
@@ -727,6 +759,8 @@ function frame(now) {
     if (keys.has("keya") || keys.has("arrowleft")) { ix -= right.x; iz -= right.z; }
     if (touchMove.y) { ix += forward.x * touchMove.y; iz += forward.z * touchMove.y; }
     if (touchMove.x) { ix += right.x * touchMove.x; iz += right.z * touchMove.x; }
+    if (dpad.y) { ix += forward.x * dpad.y; iz += forward.z * dpad.y; }
+    if (dpad.x) { ix += right.x * dpad.x; iz += right.z * dpad.x; }
     const len = Math.hypot(ix, iz) || 1;
     const running = keys.has("shiftleft") || keys.has("shiftright");
     const vel = (running ? 3.6 : 2.05) * (ix || iz ? 1 : 0);
@@ -847,7 +881,7 @@ function addTube(x, y, z, radius, length, mat, axis) {
 // dropped so the beige blocks don't show through the new furniture.
 const CARVE = [
   [-0.5, 0.05, -3.2, 0.65, 1.05, -1.25],
-  [-1.55, 0.2, -4.62, -0.3, 1.2, -3.08],
+  [-1.6, 0.04, -4.7, -0.25, 1.2, -3.05],
   [0.95, 0.05, -4.1, 1.85, 1.05, -3.1],
   [1.4, 0.0, -1.2, 2.75, 1.75, -0.02],
   [1.5, 0.0, -0.12, 2.65, 0.22, 0.4],
@@ -857,6 +891,8 @@ const CARVE = [
   [1.22, 0.0, -2.9, 2.28, 0.55, -1.15],
   [0.68, 0.4, 0.48, 1.02, 2.15, 1.05],
   [-3.05, 1.42, -5.15, -2.45, 2.4, -2.85],
+  [-3.02, 1.7, -2.9, -2.45, 2.4, -2.1],
+  [-2.4, 0.5, -2.05, -1.88, 2.3, -1.3],
   [-2.86, 0.04, -3.22, -1.96, 1.92, -2.02],
 ];
 
@@ -1491,12 +1527,14 @@ function dressApartment() {
   addBox(-0.99, 0.47, -3.87, 0.98, 0.94, 1.32, black);
   [-4.18, -3.48].forEach((z) => {
     const sx = -0.08;
+    const parts = [];
     [[sx - 0.16, z - 0.16], [sx + 0.16, z - 0.16], [sx - 0.16, z + 0.16], [sx + 0.16, z + 0.16]].forEach(([x, zz]) => {
-      addColumn(x, 0.31, zz, 0.018, 0.62, black, 8);
+      parts.push(addColumn(x, 0.31, zz, 0.018, 0.62, black, 8));
     });
-    addBox(sx, 0.64, z, 0.42, 0.06, 0.42, cream);
-    addBox(sx + 0.16, 0.86, z, 0.06, 0.4, 0.38, cream);
-    addTube(sx + 0.16, 1.06, z, 0.04, 0.36, cream, "z");
+    parts.push(addBox(sx, 0.64, z, 0.42, 0.06, 0.42, cream));
+    parts.push(addBox(sx + 0.16, 0.86, z, 0.06, 0.4, 0.38, cream));
+    parts.push(addTube(sx + 0.16, 1.06, z, 0.04, 0.36, cream, "z"));
+    parts.forEach((mesh) => { mesh.castShadow = false; });
   });
   [-4.18, -3.48].forEach((z) => {
     const group = new THREE.Group();
@@ -1588,6 +1626,11 @@ function dressApartment() {
       shelfSets[i][shelf](shelfX, y + 0.012, z);
     });
     cabinets.push({ group, open: false, amount: 0, sign: outerSouth ? 1 : -1, x: -2.5, z });
+  });
+  addBox(-2.74, 1.96, -2.57, 0.34, 0.52, 0.82, white);
+  [-2.76, -2.38].forEach((z) => {
+    addBox(-2.55, 1.94, z, 0.03, 0.44, 0.36, white);
+    addBox(-2.52, 1.82, z + (z < -2.57 ? 0.12 : -0.12), 0.025, 0.14, 0.032, black);
   });
   const frost = dressMat(0xf7f4ee, { transparent: true, opacity: 0.55 });
   addBox(-2.54, 1.88, -3.55, 0.03, 0.62, 0.42, frost);
@@ -1916,7 +1959,7 @@ async function main() {
   finishPalette();
 
   const [minx, minz, maxx, maxz] = level.bounds;
-  const ceilGeo = new THREE.PlaneGeometry((maxx - minx) + 1.2, (maxz - minz) + 1.2);
+  const ceilGeo = new THREE.PlaneGeometry((maxx - minx) + 8, (maxz - minz) + 8);
   ceiling = new THREE.Mesh(ceilGeo, new THREE.MeshStandardMaterial({ color: 0x1a120e, roughness: 0.96 }));
   ceiling.receiveShadow = true;
   ceiling.rotation.x = Math.PI / 2;
@@ -2080,6 +2123,35 @@ const releaseStick = (e) => {
 $("touch").addEventListener("pointerup", releaseStick);
 $("touch").addEventListener("pointercancel", releaseStick);
 $("touch").addEventListener("contextmenu", (e) => e.preventDefault());
+
+const dpadHeld = new Map();
+function applyDpad() {
+  let x = 0;
+  let y = 0;
+  dpadHeld.forEach((dir) => { x += dir.x; y += dir.y; });
+  dpad.x = Math.max(-1, Math.min(1, x));
+  dpad.y = Math.max(-1, Math.min(1, y));
+}
+document.querySelectorAll("#dpad button").forEach((btn) => {
+  const dir = { x: Number(btn.dataset.x), y: Number(btn.dataset.y) };
+  const press = (e) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    dpadHeld.set(e.pointerId, dir);
+    applyDpad();
+    try { btn.setPointerCapture(e.pointerId); } catch (err) {}
+  };
+  const release = (e) => {
+    if (!dpadHeld.has(e.pointerId)) return;
+    dpadHeld.delete(e.pointerId);
+    applyDpad();
+  };
+  btn.addEventListener("pointerdown", press);
+  btn.addEventListener("pointerup", release);
+  btn.addEventListener("pointercancel", release);
+});
+$("dpad").addEventListener("contextmenu", (e) => e.preventDefault());
 
 $("useBtn").addEventListener("pointerdown", (e) => {
   e.preventDefault();
