@@ -42,10 +42,9 @@
     position: fixed; left: 0; right: 0; bottom: 0; height: var(--hud);
     background: linear-gradient(#3a2418, var(--bar));
     border-top: 2px solid var(--bar-edge);
-    display: grid; grid-template-columns: 52px 1fr auto; align-items: center;
+    display: grid; grid-template-columns: 1fr auto; align-items: center;
     padding: 0 14px 0 8px; gap: 10px;
   }
-  #face { width: 40px; height: 40px; display: block; }
   #titles { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
   #titles b { font-size: 13px; letter-spacing: 0.12em; font-weight: 700; }
   #titles span { color: var(--dim); font-size: 11px; letter-spacing: 0.06em; }
@@ -123,12 +122,11 @@
   /* Phone: a short label, with the controls in the bottom corners of the view. */
   body.touch { --hud: calc(40px + env(safe-area-inset-bottom)); }
   body.touch #hud {
-    grid-template-columns: 40px 1fr;
+    grid-template-columns: 1fr;
     padding: 0 12px 0 8px;
     gap: 8px;
   }
   body.touch #hint { display: none; }
-  body.touch #face { width: 32px; height: 32px; }
   body.touch #titles b { font-size: 11px; letter-spacing: 0.08em; }
   body.touch #titles span { font-size: 10px; letter-spacing: 0.06em; }
   body.touch #useBtn {
@@ -145,29 +143,9 @@
   <div id="prompt">E &nbsp; OPEN</div>
 </div>
 <footer id="hud">
-  <svg id="face" viewBox="0 0 64 64" aria-hidden="true">
-    <rect width="64" height="64" rx="8" fill="#1c120c"/>
-    <path fill="#e08a3c" d="M15 29 7 4.5 29 18.5Z"/>
-    <path fill="#f6d3ae" d="M16.2 26.2 11.2 9.2 25.4 18.4Z"/>
-    <path fill="#e08a3c" d="M49 29 57 4.5 35 18.5Z"/>
-    <path fill="#f6d3ae" d="M47.8 26.2 52.8 9.2 38.6 18.4Z"/>
-    <path fill="#e08a3c" d="M32 17.5c-13.2 0-21.4 8.6-21.4 19.4C10.6 49.2 19 58.8 32 61.2 45 58.8 53.4 49.2 53.4 36.9c0-10.8-8.2-19.4-21.4-19.4Z"/>
-    <path fill="#c56a28" d="M14.2 35.2C16 28.2 22.2 23.6 32 23.6s16 4.6 17.8 11.6c-3.4-2.6-9.2-4-17.8-4s-14.4 1.4-17.8 4Z"/>
-    <path fill="#f8e4cc" d="M32 39.6c-8 0-12.6 4.4-13.6 10.2-.7 4.2 1.6 8.4 7 10.4 2 .8 4.2 1.2 6.6 1.2s4.6-.4 6.6-1.2c5.4-2 7.7-6.2 7-10.4-1-5.8-5.6-10.2-13.6-10.2Z"/>
-    <g fill="#1a120e">
-      <ellipse cx="23.4" cy="35.4" rx="3.15" ry="3.85" transform="rotate(-14 23.4 35.4)"/>
-      <ellipse cx="40.6" cy="35.4" rx="3.15" ry="3.85" transform="rotate(14 40.6 35.4)"/>
-    </g>
-    <g fill="#fff8ef">
-      <circle cx="24.45" cy="34.15" r="1"/>
-      <circle cx="41.65" cy="34.15" r="1"/>
-    </g>
-    <path fill="#2a1810" d="M32 47.2 28.2 51.8c-.45.65.05 1.5.85 1.5h5.9c.8 0 1.3-.85.85-1.5L32 47.2Z"/>
-    <path fill="none" stroke="#2a1810" stroke-width="1.2" stroke-linecap="round" d="M32 52.8v3.4M32 56c-1.8 1.6-4 1.8-5.6.2M32 56c1.8 1.6 4 1.8 5.6.2"/>
-  </svg>
   <div id="titles">
     <b>URBAN FOX RENTALS</b>
-    <span>3RD FLOOR &nbsp;·&nbsp; EXPLORE THE SPACE</span>
+    <span>3RD FLOOR UNIT</span>
   </div>
   <div id="hint">
     <span class="hintbit"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> MOVE</span>
@@ -179,7 +157,7 @@
 <div id="cover">
   <div>
     <h1>URBAN FOX RENTALS</h1>
-    <h2>3RD FLOOR</h2>
+    <h2>3RD FLOOR UNIT</h2>
     <p id="startHint">CLICK TO EXPLORE</p>
     <ul id="startKeys">
       <li>WASD MOVE &nbsp;·&nbsp; MOUSE LOOK</li>
@@ -230,7 +208,7 @@ let bedMat = null;
 let tvChannels = [];
 let tvChannel = 0;
 let bedView = null;
-const tvNames = ["SOCCER", "BASKETBALL", "BASEBALL", "NEWS"];
+const tvNames = ["SOCCER", "BASKETBALL", "BASEBALL", "NEWS", "NATURE"];
 let curtainRig = null;
 let cabinets = [];
 let drawers = [];
@@ -691,9 +669,11 @@ function showScreen(mat, on, tex) {
   if (!mat) return;
   mat.map = on ? tex : null;
   mat.emissiveMap = on ? tex : null;
-  mat.color.set(on ? 0xffffff : 0x14171c);
+  mat.color.set(on ? 0xffffff : 0x050608);
   mat.emissive.set(on ? 0xffffff : 0x000000);
-  mat.emissiveIntensity = on ? 0.45 : 1;
+  mat.emissiveIntensity = on ? 0.45 : 0;
+  mat.metalness = on ? 0.04 : 0;
+  mat.roughness = on ? 0.4 : 0.92;
   mat.needsUpdate = true;
 }
 
@@ -876,7 +856,7 @@ const CARVE = [
   [1.22, 0.0, -2.9, 2.28, 0.55, -1.15],
   [0.68, 0.4, 0.48, 1.02, 2.15, 1.05],
   [-3.05, 1.42, -5.15, -2.45, 2.4, -2.85],
-  [-2.58, 0.08, -3.02, -2.02, 1.82, -2.12],
+  [-2.58, 0.08, -2.94, -2.02, 1.82, -2.14],
 ];
 
 function carveScan(mesh) {
@@ -1012,7 +992,7 @@ function dressApartment() {
   const sage = dressMat(0x8d9b86);
   const wood = dressMat(0xa67c52);
   const glass = dressMat(0xd7e4e6, { transparent: true, opacity: 0.45, depthWrite: false, roughness: 0.05, metalness: 0.04 });
-  const screen = dressMat(0x101820, { emissive: 0x243040, roughness: 0.12, metalness: 0.35 });
+  const screen = dressMat(0x050608, { emissive: 0x000000, roughness: 0.92, metalness: 0 });
   tvMat = screen;
   tvMat.userData.sticky = true;
   const boucleTex = paintTexture(128, 128, (g, w, h) => {
@@ -1282,8 +1262,7 @@ function dressApartment() {
     windows.push({ mesh, open: false, amount: 0, y0: 1.35, x, z });
   };
   [[-2.19, 0.91], [-0.21, 0.89], [1.88, 0.88]].forEach(([x, w]) => blind(x, 4.92, w, Math.PI, bedSky, 5.05));
-  [[-2.11, 0.91]].forEach(([x, w]) => blind(x, -5.06, w, 0, kitSky, -5.1));
-  [[0.03, 0.89], [1.85, 1.2]].forEach(([x, w]) => blind(x, -5.06, w, 0, liveSky, -5.1));
+  [[-2.11, 0.91], [0.03, 0.89], [1.85, 1.2]].forEach(([x, w]) => blind(x, -5.06, w, 0, liveSky, -5.1));
 
   // Living room. Low seat, tall back, and arms so it reads as the boucle sofa.
   addBox(0.45, 0.012, -2.2, 2.7, 0.02, 2.15, rug);
@@ -1414,6 +1393,35 @@ function dressApartment() {
       g.fillRect(8, 34, w - 16, 12);
       g.fillStyle = "#8d6848";
       g.fillRect(8, 34, w - 16, 2);
+    }),
+    screenTex((g, w, h) => {
+      g.fillStyle = "#111";
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = "#f5c518";
+      g.fillRect(2, 2, w - 4, h - 4);
+      g.fillStyle = "#8ec8ea";
+      g.fillRect(6, 6, w - 12, 24);
+      g.fillStyle = "#e7f3f8";
+      g.fillRect(6, 28, w - 12, 14);
+      g.fillStyle = "#1c1c1c";
+      g.fillRect(38, 12, 18, 12);
+      g.fillRect(34, 22, 26, 14);
+      g.fillRect(30, 24, 6, 8);
+      g.fillStyle = "#f7f7f2";
+      g.fillRect(44, 16, 8, 6);
+      g.fillRect(40, 26, 14, 8);
+      g.fillStyle = "#1c1c1c";
+      g.fillRect(46, 17, 2, 2);
+      g.fillStyle = "#f0a24a";
+      g.fillRect(52, 17, 8, 3);
+      g.fillRect(38, 35, 7, 3);
+      g.fillRect(50, 35, 7, 3);
+      g.fillStyle = "#111";
+      g.fillRect(8, 36, 22, 4);
+      g.fillStyle = "#f5c518";
+      g.fillRect(10, 37, 4, 2);
+      g.fillRect(16, 37, 4, 2);
+      g.fillRect(22, 37, 6, 2);
     }),
   ];
   bedView = screenTex((g, w, h) => {
@@ -1596,8 +1604,14 @@ function dressApartment() {
   const fridgeZ0 = -2.96;
   const fridgeZ1 = -2.18;
   const fridgeH = 1.68;
-  addBox(-2.55, 0.86, (fridgeZ0 + fridgeZ1) / 2, 0.08, fridgeH, fridgeZ1 - fridgeZ0, fridgeInside);
-  [0.55, 1.05].forEach((y) => addBox(-2.32, y, -2.57, 0.36, 0.02, 0.7, white));
+  const fridgeMidZ = (fridgeZ0 + fridgeZ1) / 2;
+  const fridgeDepth = 0.5;
+  addBox(-2.55, 0.86, fridgeMidZ, 0.06, fridgeH, fridgeZ1 - fridgeZ0 - 0.06, fridgeInside);
+  addBox(-2.32, 0.86, fridgeZ0 + 0.02, fridgeDepth, fridgeH, 0.05, fridgeShell);
+  addBox(-2.32, 0.86, fridgeZ1 - 0.02, fridgeDepth, fridgeH, 0.05, fridgeShell);
+  addBox(-2.32, 0.86 + fridgeH / 2 - 0.03, fridgeMidZ, fridgeDepth, 0.05, fridgeZ1 - fridgeZ0, fridgeShell);
+  addBox(-2.32, 0.86 - fridgeH / 2 + 0.04, fridgeMidZ, fridgeDepth, 0.06, fridgeZ1 - fridgeZ0, fridgeShell);
+  [0.55, 1.05].forEach((y) => addBox(-2.32, y, fridgeMidZ, 0.34, 0.02, 0.62, white));
   const bottle = (x, y, z) => {
     addColumn(x, y + 0.09, z, 0.028, 0.16, bottleMat, 10);
     addColumn(x, y + 0.18, z, 0.016, 0.03, capMat, 8);
