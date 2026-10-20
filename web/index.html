@@ -847,6 +847,7 @@ function addTube(x, y, z, radius, length, mat, axis) {
 // dropped so the beige blocks don't show through the new furniture.
 const CARVE = [
   [-0.5, 0.05, -3.2, 0.65, 1.05, -1.25],
+  [-1.55, 0.2, -4.62, -0.3, 1.2, -3.08],
   [0.95, 0.05, -4.1, 1.85, 1.05, -3.1],
   [1.4, 0.0, -1.2, 2.75, 1.75, -0.02],
   [1.5, 0.0, -0.12, 2.65, 0.22, 0.4],
@@ -856,7 +857,7 @@ const CARVE = [
   [1.22, 0.0, -2.9, 2.28, 0.55, -1.15],
   [0.68, 0.4, 0.48, 1.02, 2.15, 1.05],
   [-3.05, 1.42, -5.15, -2.45, 2.4, -2.85],
-  [-2.58, 0.08, -2.94, -2.02, 1.82, -2.14],
+  [-2.86, 0.04, -3.22, -1.96, 1.92, -2.02],
 ];
 
 function carveScan(mesh) {
@@ -1604,14 +1605,19 @@ function dressApartment() {
   const fridgeZ0 = -2.96;
   const fridgeZ1 = -2.18;
   const fridgeH = 1.68;
+  const fridgeY = 0.86;
   const fridgeMidZ = (fridgeZ0 + fridgeZ1) / 2;
-  const fridgeDepth = 0.5;
-  addBox(-2.55, 0.86, fridgeMidZ, 0.06, fridgeH, fridgeZ1 - fridgeZ0 - 0.06, fridgeInside);
-  addBox(-2.32, 0.86, fridgeZ0 + 0.02, fridgeDepth, fridgeH, 0.05, fridgeShell);
-  addBox(-2.32, 0.86, fridgeZ1 - 0.02, fridgeDepth, fridgeH, 0.05, fridgeShell);
-  addBox(-2.32, 0.86 + fridgeH / 2 - 0.03, fridgeMidZ, fridgeDepth, 0.05, fridgeZ1 - fridgeZ0, fridgeShell);
-  addBox(-2.32, 0.86 - fridgeH / 2 + 0.04, fridgeMidZ, fridgeDepth, 0.06, fridgeZ1 - fridgeZ0, fridgeShell);
-  [0.55, 1.05].forEach((y) => addBox(-2.32, y, fridgeMidZ, 0.34, 0.02, 0.62, white));
+  const wall = 0.045;
+  const xBack = -2.58;
+  const xFront = -2.065;
+  const bodyX = (xBack + xFront) / 2;
+  const bodyDepth = xFront - xBack;
+  addBox(xBack + wall / 2, fridgeY, fridgeMidZ, wall, fridgeH, fridgeZ1 - fridgeZ0 - wall * 2, fridgeInside);
+  addBox(bodyX, fridgeY, fridgeZ0 + wall / 2, bodyDepth, fridgeH, wall, fridgeShell);
+  addBox(bodyX, fridgeY, fridgeZ1 - wall / 2, bodyDepth, fridgeH, wall, fridgeShell);
+  addBox(bodyX, fridgeY + fridgeH / 2 - wall / 2, fridgeMidZ, bodyDepth, wall, fridgeZ1 - fridgeZ0, fridgeShell);
+  addBox(bodyX, fridgeY - fridgeH / 2 + wall / 2, fridgeMidZ, bodyDepth, wall, fridgeZ1 - fridgeZ0, fridgeShell);
+  [0.55, 1.05].forEach((y) => addBox(-2.32, y, fridgeMidZ, 0.34, 0.02, 0.58, white));
   const bottle = (x, y, z) => {
     addColumn(x, y + 0.09, z, 0.028, 0.16, bottleMat, 10);
     addColumn(x, y + 0.18, z, 0.016, 0.03, capMat, 8);
