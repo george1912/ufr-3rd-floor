@@ -1805,6 +1805,7 @@ function dressApartment() {
     const name = door.meta.name;
     const bathDoor = name.indexOf("c9643aaf") !== -1;
     const bedDoor = name.indexOf("05f0d57c") !== -1;
+    const hallDoor = name.indexOf("27e5a30b") !== -1;
     const ownerId = doors.indexOf(door) + 1;
     if (bathDoor) {
       door.mesh.visible = false;
@@ -1825,14 +1826,15 @@ function dressApartment() {
     const dx = Math.abs(x1 - x0);
     const dz = Math.abs(z1 - z0);
     const alongX = dx >= dz;
-    const widen = door.meta.motion === "slide" ? 1.16 : bathDoor || bedDoor ? 1 : 1.48;
+    const widen = door.meta.motion === "slide" ? 1.16 : bathDoor || bedDoor || hallDoor ? 1 : 1.48;
     if (alongX) door.mesh.scale.x = widen;
     else door.mesh.scale.z = widen;
     const cx = hx + ((x0 + x1) / 2 - hx) * (alongX ? widen : 1);
     const cz = hz + ((z0 + z1) / 2 - hz) * (alongX ? 1 : widen);
     const sx = alongX ? dx * widen : Math.max(dx, 0.055);
     const sz = alongX ? Math.max(dz, 0.055) : dz * widen;
-    const slab = name.indexOf("27e5a30b") !== -1 ? pine : white;
+    const slab = hallDoor ? pine : white;
+    if (hallDoor) door.mesh.visible = false;
     onDoor(door, cx, 1.06, cz, sx * 0.98, 2.06, sz, slab);
     if (slab === pine) {
       onDoor(door, cx, 0.68, cz, sx * 0.55, 0.62, 0.02, pineDark);
@@ -1859,6 +1861,7 @@ function dressApartment() {
     }
     if (bathDoor) door.sign = -1;
     if (bedDoor) door.sign = 1;
+    if (hallDoor) door.sign = 1;
   }
 
   [[1.0, 3.4], [0.4, 2.1], [0.2, -2.2], [-1.7, -4.0], [0.3, 0.3]].forEach(([x, z]) => {
@@ -1879,17 +1882,16 @@ function addStairwell() {
     g.fillRect(w - 14, 0, 14, h);
     for (let i = 0; i < 7; i++) {
       const y = 36 + i * 17;
-      const inset = 14 + i * 3;
       g.fillStyle = i % 2 ? "#d8d0c2" : "#c9bfae";
-      g.fillRect(inset, y, w - inset * 2, 7);
+      g.fillRect(18, y, w - 36, 7);
       g.fillStyle = "#b3a898";
-      g.fillRect(inset, y + 7, w - inset * 2, 10);
+      g.fillRect(18, y + 7, w - 36, 10);
     }
     g.strokeStyle = "#2a241e";
     g.lineWidth = 3;
     g.beginPath();
-    g.moveTo(22, 42);
-    g.lineTo(40, 148);
+    g.moveTo(28, 36);
+    g.lineTo(28, 152);
     g.stroke();
   });
   tex.magFilter = THREE.NearestFilter;
